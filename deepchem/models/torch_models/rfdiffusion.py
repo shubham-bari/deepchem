@@ -21,7 +21,7 @@ This module requires PyTorch to be installed.
 
 import math
 import logging
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
     import torch
@@ -300,6 +300,13 @@ class BackboneDiffusion(nn.Module):
         Maximum supported protein length (in residues).
     dropout : float, default 0.1
         Dropout probability.
+    backend : str, default "transformer"
+        Denoiser backend to use. Supported values are ``"transformer"``
+        (the original implementation) and ``"rosettafold"``.
+    rosettafold_config : dict, optional
+        Optional configuration keyword arguments for constructing the
+        RosettaFold denoiser backend. Ignored when ``backend`` is
+        ``"transformer"``.
 
     References
     ----------
@@ -324,10 +331,22 @@ class BackboneDiffusion(nn.Module):
                  num_layers: int = 8,
                  num_heads: int = 8,
                  max_seq_len: int = 512,
-                 dropout: float = 0.1) -> None:
+                 dropout: float = 0.1,
+                 backend: str = "transformer",
+                 rosettafold_config: Optional[Dict[str, Any]] = None) -> None:
         super().__init__()
         self.coord_dim = coord_dim
         self.embed_dim = embed_dim
+        self.backend = backend
+
+        if self.backend not in ("transformer", "rosettafold"):
+            raise ValueError(
+                "backend must be one of {'transformer', 'rosettafold'}.")
+
+        if self.backend == "rosettafold":
+            self.rosettafold = RosettaFoldDiffusionAdapter(
+                coord_dim=coord_dim, rosettafold_config=rosettafold_config)
+            return
 
         # Timestep embedding
         self.time_embedding = SinusoidalTimestepEmbedding(time_dim)
@@ -377,6 +396,9 @@ class BackboneDiffusion(nn.Module):
         torch.Tensor
             Predicted noise of shape ``(batch, num_residues, coord_dim)``.
         """
+        if self.backend == "rosettafold":
+            return self.rosettafold(inputs)
+
         x_noisy, t = inputs[0], inputs[1]
 
         # Ensure t is long for embedding lookup
@@ -401,6 +423,71 @@ class BackboneDiffusion(nn.Module):
         noise_pred = self.output_proj(h)
 
         return noise_pred
+
+
+class RosettaFoldDiffusionAdapter(nn.Module):
+    """Adapter that exposes RosettaFold denoiser through RFdiffusion API.
+
+    This class preserves the RFdiffusion denoiser signature
+    ``model([x_t, t]) -> predicted_noise`` while delegating the forward pass to
+    :class:`deepchem.models.torch_models.rosettafold.RosettaFoldDenoiser`.
+
+    Parameters
+    ----------
+    coord_dim : int, default 9
+        Coordinate dimension predicted by the denoiser.
+    rosettafold_config : dict, optional
+        Optional dictionary of keyword arguments used to initialize
+        :class:`deepchem.models.torch_models.rosettafold_config.RosettaFoldConfig`.
+    """
+
+    def __init__(self,
+                 coord_dim: int = 9,
+                 rosettafold_config: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__()
+        from deepchem.models.torch_models.rosettafold import RosettaFoldDenoiser
+        from deepchem.models.torch_models.rosettafold_config import RosettaFoldConfig
+
+        cfg_kwargs = dict(rosettafold_config or {})
+        input_spec_kwargs = cfg_kwargs.pop("input_spec", None)
+        config = RosettaFoldConfig(**cfg_kwargs)
+        if isinstance(input_spec_kwargs, dict):
+            for key, value in input_spec_kwargs.items():
+                setattr(config.input_spec, key, value)
+        config.input_spec.coord_dim = coord_dim
+        self.model = RosettaFoldDenoiser(config=config)
+        self._conditioning: Optional[Dict[str, torch.Tensor]] = None
+
+    def set_conditioning(
+            self, conditioning: Optional[Dict[str, torch.Tensor]]) -> None:
+        """Set optional conditioning tensors for future denoising calls.
+
+        Parameters
+        ----------
+        conditioning : dict[str, torch.Tensor], optional
+            Conditioning dictionary consumed by ``RosettaFoldDenoiser``.
+        """
+        self._conditioning = conditioning
+
+    def forward(self, inputs: List[torch.Tensor]) -> torch.Tensor:
+        """Predict noise using the RosettaFold denoiser backend.
+
+        Parameters
+        ----------
+        inputs : list[torch.Tensor]
+            Input list where ``inputs[0]`` is noisy coordinates ``x_t`` and
+            ``inputs[1]`` is timestep tensor ``t``.
+
+        Returns
+        -------
+        torch.Tensor
+            Predicted noise with shape ``(batch, num_residues, coord_dim)``.
+        """
+        if len(inputs) < 2:
+            raise ValueError("Expected inputs=[x_t, t] for denoising.")
+        return self.model.forward_denoise(inputs[0],
+                                          inputs[1],
+                                          cond_batch=self._conditioning)
 
 
 class CosineSchedule:
