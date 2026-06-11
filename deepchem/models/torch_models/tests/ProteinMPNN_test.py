@@ -53,7 +53,7 @@ class TestProteinMPNNFeaturizer(unittest.TestCase):
         """
         self.test_dir.cleanup()
 
-    def protein_structure_data_valid(self):
+    def test_protein_structure_data_valid(self):
         """Test standard initialization and default mask generation."""
         L = 5
         coords = np.random.randn(L, 4, 3).astype(np.float32)
@@ -74,7 +74,7 @@ class TestProteinMPNNFeaturizer(unittest.TestCase):
         self.assertTrue(
             np.array_equal(structure.mask, np.ones(L, dtype=np.float32)))
 
-    def protein_structure_data_length_mismatch(self):
+    def test_protein_structure_data_length_mismatch(self):
         """Test that passing mismatched lengths raises a ValueError."""
         coords = np.random.randn(4, 4, 3).astype(np.float32)
         seq = 'ACDEF'  #
@@ -82,7 +82,7 @@ class TestProteinMPNNFeaturizer(unittest.TestCase):
         with self.assertRaises(ValueError):
             ProteinStructureData(backbone_coords=coords, sequence=seq)
 
-    def _mapper_tokenization_and_masking(self):
+    def test_mapper_tokenization_and_masking(self):
         """Test sequence tokenization ('X' handling) and NaN coordinate masking."""
         L = 3
         coords = np.random.randn(L, 4, 3).astype(np.float32)
@@ -106,7 +106,7 @@ class TestProteinMPNNFeaturizer(unittest.TestCase):
         self.assertEqual(mask[1], 0.0)
         self.assertEqual(mask[2], 1.0)
 
-    def _featurizer_default(self):
+    def test_featurizer_default(self):
         """Test standard featurization of a PDB file."""
 
         featurizer = ProteinMPNNFeaturizer()

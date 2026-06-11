@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import logging
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Optional
 
 from deepchem.feat.base_classes import Featurizer
 
@@ -34,17 +34,17 @@ class ProteinStructureData:
     sequence : str
         Amino acid sequence string of length L using characters from the
         standard amino acid alphabet.
-    chain_mask : np.ndarray
+    chain_mask : np.ndarray, optional
         Binary mask where 1 indicates positions to predict
         and 0 indicates fixed/context positions.
         shape: (L,)
-    chain_encoding : np.ndarray
+    chain_encoding : np.ndarray, optional
         To indenitfy separate protein chains. Defaults to one chain.
         shape: (L,)
-    residue_idx : np.ndarray
+    residue_idx : np.ndarray, optional
         Indexing each residue in the protein sequence, used for referencing the original sequence.
         shape: (L,)
-    mask : np.ndarray
+    mask : np.ndarray, optional
         Validity mask where 1 indicates valid residues and
         0 indicates padding or missing coordinates. Defaults to all ones.
         shape: (L,)
@@ -69,13 +69,14 @@ class ProteinStructureData:
         self,
         backbone_coords: np.ndarray,
         sequence: str,
-        chain_mask: np.ndarray = None,
-        chain_encoding: np.ndarray = None,
-        residue_idx: np.ndarray = None,
-        mask: np.ndarray = None,
+        chain_mask: Optional[np.ndarray] = None,
+        chain_encoding: Optional[np.ndarray] = None,
+        residue_idx: Optional[np.ndarray] = None,
+        mask: Optional[np.ndarray] = None,
     ):
-        self.backbone_coords = np.asarray(backbone_coords, dtype=np.float32)
-        self.sequence = sequence
+        self.backbone_coords: np.ndarray[Any, np.dtype[Any]] = np.asarray(
+            backbone_coords, dtype=np.float32)
+        self.sequence: str = sequence
         L = len(sequence)
 
         if self.backbone_coords.shape[0] != L:
@@ -86,25 +87,29 @@ class ProteinStructureData:
 
         # If chain_mask is not provided, set it to all ones
         if chain_mask is None:
-            self.chain_mask = np.ones(L, dtype=np.float32)
+            self.chain_mask: np.ndarray[Any, np.dtype[Any]] = np.ones(
+                L, dtype=np.float32)
         else:
             self.chain_mask = np.asarray(chain_mask, dtype=np.float32)
 
         # If chain_encoding is not provided, set it to all ones
         if chain_encoding is None:
-            self.chain_encoding = np.ones(L, dtype=np.int32)
+            self.chain_encoding: np.ndarray[Any, np.dtype[Any]] = np.ones(
+                L, dtype=np.int32)
         else:
             self.chain_encoding = np.asarray(chain_encoding, dtype=np.int32)
 
         # If residue_idx is not provided, set it to the range of the sequence
         if residue_idx is None:
-            self.residue_idx = np.arange(L, dtype=np.int32)
+            self.residue_idx: np.ndarray[Any, np.dtype[Any]] = np.arange(
+                L, dtype=np.int32)
         else:
             self.residue_idx = np.asarray(residue_idx, dtype=np.int32)
 
         # If mask is not provided, set it to all ones
         if mask is None:
-            self.mask = np.ones(L, dtype=np.float32)
+            self.mask: np.ndarray[Any,
+                                  np.dtype[Any]] = np.ones(L, dtype=np.float32)
         else:
             self.mask = np.asarray(mask, dtype=np.float32)
 
@@ -182,25 +187,31 @@ class _MapperProteinMPNN:
         """
         structure = self.structure
 
-        self.X: np.ndarray = structure.backbone_coords.copy()
+        self.X: np.ndarray[Any,
+                           np.dtype[Any]] = structure.backbone_coords.copy()
 
-        self.mask: np.ndarray = structure.mask * np.isfinite(
-            np.sum(self.X, axis=(1, 2))).astype(np.float32)
+        self.mask: np.ndarray[Any,
+                              np.dtype[Any]] = structure.mask * np.isfinite(
+                                  np.sum(self.X, axis=(1, 2))).astype(
+                                      np.float32)
 
         isnan = np.isnan(self.X)
         self.X[isnan] = 0.0
 
-        self.S: np.ndarray = np.array([
+        self.S: np.ndarray[Any, np.dtype[Any]] = np.array([
             AMINO_ACID_ALPHABET.index(a)
             if a in AMINO_ACID_ALPHABET else NUM_AMINO_ACIDS - 1
             for a in structure.sequence
         ],
-                                      dtype=np.int32)
+                                                          dtype=np.int32)
 
-        self.chain_M: np.ndarray = structure.chain_mask.astype(np.float32)
-        self.residue_idx: np.ndarray = structure.residue_idx.astype(np.int32)
-        self.chain_encoding: np.ndarray = structure.chain_encoding.astype(
-            np.int32)
+        self.chain_M: np.ndarray[Any,
+                                 np.dtype[Any]] = structure.chain_mask.astype(
+                                     np.float32)
+        self.residue_idx: np.ndarray[
+            Any, np.dtype[Any]] = structure.residue_idx.astype(np.int32)
+        self.chain_encoding: np.ndarray[
+            Any, np.dtype[Any]] = structure.chain_encoding.astype(np.int32)
 
     @property
     def values(
@@ -250,7 +261,7 @@ class ProteinMPNNFeaturizer(Featurizer):
     - https://github.com/RosettaCommons/RFantibody/blob/main/src/rfantibody/proteinmpnn/model/protein_mpnn_utils.py
     """
 
-    def __init__(self, design_chains: List[str] = None):
+    def __init__(self, design_chains: Optional[List[str]] = None):
         self.design_chains = design_chains
         self.parser = PDBParser(QUIET=True)
         self.backbone_atoms = ['N', 'CA', 'C', 'O']
