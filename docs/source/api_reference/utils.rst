@@ -956,7 +956,8 @@ ProteinMPNN Utils
 -----------------
 
 The utilities here are used for ProteinMPNN specific operations.
-These are used to gather edges, nodes and concatenate the neighboring nodes.
+These NumPy-based helpers gather edges, nodes, and concatenate neighboring
+node features for message-passing layers.
 
 .. autofunction:: deepchem.utils.ProteinMPNN_utils.gather_edges
 .. autofunction:: deepchem.utils.ProteinMPNN_utils.gather_nodes
