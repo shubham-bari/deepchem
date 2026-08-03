@@ -5,8 +5,7 @@ except ImportError:
     has_torch = False
 
 
-def gather_edges(edges: torch.Tensor,
-                 neighbor_idx: torch.Tensor) -> torch.Tensor:
+def gather_edges(edges, neighbor_idx):
     """Gather edge features for each node's k-nearest neighbors.
 
     For every node, selects the edge feature vectors corresponding to its
@@ -47,8 +46,7 @@ def gather_edges(edges: torch.Tensor,
     return torch.gather(edges, 2, idx)
 
 
-def gather_nodes(nodes: torch.Tensor,
-                 neighbor_idx: torch.Tensor) -> torch.Tensor:
+def gather_nodes(nodes, neighbor_idx):
     """Gather node features for each node's k-nearest neighbors.
 
     For every node, collects the feature vectors of its k-nearest neighbors
@@ -91,8 +89,7 @@ def gather_nodes(nodes: torch.Tensor,
     return neighbor_features.reshape(*neighbor_idx.shape[:3], node_features)
 
 
-def cat_neighbors_nodes(h_nodes: torch.Tensor, h_neighbors: torch.Tensor,
-                        E_idx: torch.Tensor) -> torch.Tensor:
+def cat_neighbors_nodes(h_nodes, h_neighbors, E_idx):
     """Concatenate neighboring node features with edge features.
 
     For each node and each of its k-nearest neighbors, gathers the neighbor's
