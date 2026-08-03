@@ -1,7 +1,8 @@
-import numpy as np
+import torch
 
 
-def gather_edges(edges: np.ndarray, neighbor_idx: np.ndarray) -> np.ndarray:
+def gather_edges(edges: torch.Tensor,
+                 neighbor_idx: torch.Tensor) -> torch.Tensor:
     """Gather edge features for each node's k-nearest neighbors.
 
     For every node, selects the edge feature vectors corresponding to its
@@ -9,16 +10,16 @@ def gather_edges(edges: np.ndarray, neighbor_idx: np.ndarray) -> np.ndarray:
 
     Parameters
     ----------
-    edges : np.ndarray
+    edges : torch.Tensor
         Full pairwise edge feature array of shape
         ``(batch, num_nodes, num_nodes, edge_features)``.
-    neighbor_idx : np.ndarray
+    neighbor_idx : torch.Tensor
         k-nearest neighbor index array of shape
         ``(batch, num_nodes, k)``, where each entry is a node index.
 
     Returns
     -------
-    np.ndarray
+    torch.Tensor
         Gathered edge features of shape
         ``(batch, num_nodes, k, edge_features)``.
 
@@ -30,20 +31,20 @@ def gather_edges(edges: np.ndarray, neighbor_idx: np.ndarray) -> np.ndarray:
 
     Examples
     --------
-    >>> import numpy as np
-    >>> edges = np.random.rand(2, 5, 5, 16)
-    >>> neighbor_idx = np.random.randint(0, 5, (2, 5, 3))
+    >>> import torch
+    >>> edges = torch.rand(2, 5, 5, 16)
+    >>> neighbor_idx = torch.randint(0, 5, (2, 5, 3))
     >>> out = gather_edges(edges, neighbor_idx)
     >>> out.shape
     (2, 5, 3, 16)
     """
     edge_features = edges.shape[-1]
-    idx = np.expand_dims(neighbor_idx, axis=-1)
-    idx = np.broadcast_to(idx, (*neighbor_idx.shape, edge_features))
-    return np.take_along_axis(edges, idx, axis=2)
+    idx = neighbor_idx.unsqueeze(-1).expand(-1, -1, -1, edge_features)
+    return torch.gather(edges, 2, idx)
 
 
-def gather_nodes(nodes: np.ndarray, neighbor_idx: np.ndarray) -> np.ndarray:
+def gather_nodes(nodes: torch.Tensor,
+                 neighbor_idx: torch.Tensor) -> torch.Tensor:
     """Gather node features for each node's k-nearest neighbors.
 
     For every node, collects the feature vectors of its k-nearest neighbors
@@ -51,15 +52,15 @@ def gather_nodes(nodes: np.ndarray, neighbor_idx: np.ndarray) -> np.ndarray:
 
     Parameters
     ----------
-    nodes : np.ndarray
+    nodes : torch.Tensor
         Node feature array of shape ``(batch, num_nodes, node_features)``.
-    neighbor_idx : np.ndarray
+    neighbor_idx : torch.Tensor
         k-nearest neighbor index array of shape
         ``(batch, num_nodes, k)``, where each entry is a node index.
 
     Returns
     -------
-    np.ndarray
+    torch.Tensor
         Gathered neighbor node features of shape
         ``(batch, num_nodes, k, node_features)``.
 
@@ -71,9 +72,9 @@ def gather_nodes(nodes: np.ndarray, neighbor_idx: np.ndarray) -> np.ndarray:
 
     Examples
     --------
-    >>> import numpy as np
-    >>> nodes = np.random.rand(2, 5, 32)
-    >>> neighbor_idx = np.random.randint(0, 5, (2, 5, 3))
+    >>> import torch
+    >>> nodes = torch.rand(2, 5, 32)
+    >>> neighbor_idx = torch.randint(0, 5, (2, 5, 3))
     >>> out = gather_nodes(nodes, neighbor_idx)
     >>> out.shape
     (2, 5, 3, 32)
@@ -81,15 +82,13 @@ def gather_nodes(nodes: np.ndarray, neighbor_idx: np.ndarray) -> np.ndarray:
     batch_size = neighbor_idx.shape[0]
     node_features = nodes.shape[2]
     neighbors_flat = neighbor_idx.reshape(batch_size, -1)
-    idx = np.expand_dims(neighbors_flat, axis=-1)
-    idx = np.broadcast_to(idx,
-                          (batch_size, neighbors_flat.shape[1], node_features))
-    neighbor_features = np.take_along_axis(nodes, idx, axis=1)
+    idx = neighbors_flat.unsqueeze(-1).expand(-1, -1, node_features)
+    neighbor_features = torch.gather(nodes, 1, idx)
     return neighbor_features.reshape(*neighbor_idx.shape[:3], node_features)
 
 
-def cat_neighbors_nodes(h_nodes: np.ndarray, h_neighbors: np.ndarray,
-                        E_idx: np.ndarray) -> np.ndarray:
+def cat_neighbors_nodes(h_nodes: torch.Tensor, h_neighbors: torch.Tensor,
+                        E_idx: torch.Tensor) -> torch.Tensor:
     """Concatenate neighboring node features with edge features.
 
     For each node and each of its k-nearest neighbors, gathers the neighbor's
@@ -99,18 +98,18 @@ def cat_neighbors_nodes(h_nodes: np.ndarray, h_neighbors: np.ndarray,
 
     Parameters
     ----------
-    h_nodes : np.ndarray
+    h_nodes : torch.Tensor
         Node feature array of shape ``(batch, num_nodes, node_features)``.
-    h_neighbors : np.ndarray
+    h_neighbors : torch.Tensor
         Edge feature array for each node's k-nearest neighbors, of shape
         ``(batch, num_nodes, k, edge_features)``.
-    E_idx : np.ndarray
+    E_idx : torch.Tensor
         k-nearest neighbor index array of shape ``(batch, num_nodes, k)``,
         where each entry is a node index.
 
     Returns
     -------
-    np.ndarray
+    torch.Tensor
         Concatenated features of shape
         ``(batch, num_nodes, k, edge_features + node_features)``.
 
@@ -122,13 +121,13 @@ def cat_neighbors_nodes(h_nodes: np.ndarray, h_neighbors: np.ndarray,
 
     Examples
     --------
-    >>> import numpy as np
-    >>> h_nodes = np.random.rand(2, 5, 32)
-    >>> h_neighbors = np.random.rand(2, 5, 3, 16)
-    >>> E_idx = np.random.randint(0, 5, (2, 5, 3))
+    >>> import torch
+    >>> h_nodes = torch.rand(2, 5, 32)
+    >>> h_neighbors = torch.rand(2, 5, 3, 16)
+    >>> E_idx = torch.randint(0, 5, (2, 5, 3))
     >>> out = cat_neighbors_nodes(h_nodes, h_neighbors, E_idx)
     >>> out.shape
     (2, 5, 3, 48)
     """
     h_nodes_gathered = gather_nodes(h_nodes, E_idx)
-    return np.concatenate([h_neighbors, h_nodes_gathered], axis=-1)
+    return torch.cat([h_neighbors, h_nodes_gathered], dim=-1)
