@@ -6,10 +6,6 @@ torch = pytest.importorskip("torch")
 try:
     import torch
     has_torch = True
-except ModuleNotFoundError:
-    has_torch = False
-
-if has_torch:
     from deepchem.models.torch_models.ProteinMPNN import (
         PositionalEncodings,
         ProteinFeaturesLayer,
@@ -18,6 +14,8 @@ if has_torch:
         ProteinStructureData,
         _MapperProteinMPNN,
     )
+except ImportError:
+    has_torch = False
 
 
 @pytest.mark.torch
