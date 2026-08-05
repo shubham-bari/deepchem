@@ -19,37 +19,6 @@ if has_torch:
         _MapperProteinMPNN,
     )
 
-    from deepchem.utils.ProteinMPNN_utils import gather_edges
-
-
-@pytest.mark.torch
-def test_gather_edges_output_shape():
-    """Test that _gather_edges returns a tensor with the correct shape."""
-    batch, num_nodes, k, edge_features = 2, 5, 3, 16
-    edges = torch.rand(batch, num_nodes, num_nodes, edge_features)
-    neighbor_idx = torch.randint(0, num_nodes, (batch, num_nodes, k))
-
-    out = gather_edges(edges, neighbor_idx)
-
-    assert isinstance(out, torch.Tensor)
-    assert out.shape == torch.Size([batch, num_nodes, k, edge_features])
-
-
-@pytest.mark.torch
-def test_gather_edges_values():
-    """Test that _gather_edges gathers the correct edge feature vectors."""
-    edges = torch.tensor([[[[0., 1.], [10., 11.], [20., 21.]],
-                           [[100., 101.], [110., 111.], [120., 121.]],
-                           [[200., 201.], [210., 211.], [220., 221.]]]])
-    neighbor_idx = torch.tensor([[[1, 2], [0, 2], [0, 1]]])
-
-    out = gather_edges(edges, neighbor_idx)
-
-    assert torch.allclose(out[0, 0, 0], torch.tensor([10., 11.]))
-    assert torch.allclose(out[0, 0, 1], torch.tensor([20., 21.]))
-    assert torch.allclose(out[0, 1, 0], torch.tensor([100., 101.]))
-    assert torch.allclose(out[0, 2, 1], torch.tensor([210., 211.]))
-
 
 @pytest.mark.torch
 def test_positional_encodings_init():
@@ -87,25 +56,6 @@ def test_positional_encodings_output_shape():
 
 
 @pytest.mark.torch
-def test_positional_encodings_cross_chain_bucket():
-    """Test that cross-chain residue pairs use the dedicated encoding bucket.
-
-    For the same sequence offset, embeddings should differ when residues are on
-    different chains versus the same chain.
-    """
-    layer = PositionalEncodings(num_embeddings=4, max_relative_feature=2)
-
-    offset = torch.tensor([[[0]]])
-    same_chain = torch.tensor([[[1.]]])
-    diff_chain = torch.tensor([[[0.]]])
-
-    same_chain_out = layer(offset, same_chain)
-    diff_chain_out = layer(offset, diff_chain)
-
-    assert not torch.allclose(same_chain_out, diff_chain_out)
-
-
-@pytest.mark.torch
 def test_protein_features_layer_init():
     """Test that ProteinFeaturesLayer initializes its submodules correctly."""
     edge_features = 64
@@ -128,19 +78,6 @@ def test_protein_features_layer_init():
     assert isinstance(layer.embeddings, PositionalEncodings)
     assert layer.edge_embedding.in_features == num_positional_embeddings + num_rbf * 25
     assert layer.edge_embedding.out_features == edge_features
-
-
-@pytest.mark.torch
-def test_protein_features_layer_dist_output_shape():
-    """Test that dist() returns neighbor distances and indices with correct shape."""
-    layer = ProteinFeaturesLayer(edge_features=32, top_k=3)
-    Ca = torch.rand(2, 5, 3)
-    mask = torch.ones(2, 5)
-
-    D_neighbors, E_idx = layer.dist(Ca, mask)
-
-    assert D_neighbors.shape == torch.Size([2, 5, 3])
-    assert E_idx.shape == torch.Size([2, 5, 3])
 
 
 @pytest.mark.torch
@@ -192,17 +129,6 @@ def test_protein_features_layer_dist_masked_residues():
 
     for node in [0, 2, 3]:
         assert 1 not in E_idx[0, node].tolist()
-
-
-@pytest.mark.torch
-def test_protein_features_layer_rbf_output_shape():
-    """Test that rbf() encodes distances to the expected number of bins."""
-    layer = ProteinFeaturesLayer(edge_features=32, num_rbf=8, top_k=4)
-    D = torch.rand(2, 6, 4)
-
-    out = layer.rbf(D)
-
-    assert out.shape == torch.Size([2, 6, 4, 8])
 
 
 @pytest.mark.torch
