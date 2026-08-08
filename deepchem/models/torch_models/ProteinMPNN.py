@@ -28,6 +28,17 @@ class PositionalEncodings(nn.Module):
     .. [1] Dauparas, J., et al. "Robust deep learning-based protein sequence
        design using ProteinMPNN." Science 378.6615 (2022): 49-56.
        https://doi.org/10.1126/science.add2187
+
+    Examples
+    --------
+    >>> import torch
+    >>> from deepchem.models.torch_models.ProteinMPNN import PositionalEncodings
+    >>> layer = PositionalEncodings(num_embeddings=16, max_relative_feature=8)
+    >>> offset = torch.randint(-10, 11, (2, 5, 3))
+    >>> mask = torch.ones(2, 5, 3)
+    >>> output = layer(offset, mask)
+    >>> output.shape
+    torch.Size([2, 5, 3, 16])
     """
 
     def __init__(self, num_embeddings: int, max_relative_feature: int = 32):
